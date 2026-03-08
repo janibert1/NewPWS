@@ -183,20 +183,108 @@ TI BQ25798EVM & Buck-boost dev board (complete EVM) & Integrated MPPT function, 
 \caption{Signal wiring map. Verify channel assignments in transmitter before motor power-up.}
 \end{figure}
 
-\section*{8. LW-PLA and Carbon Tube Build Notes}
+\section*{8. Pin-level Wiring (Exact Connector Mapping)}
+\subsection*{8.1 Shared power-bus rule}
+Battery+, MPPT output+, and ESC+ are intentionally on the same positive DC bus node (through their branch fuses). Continuity between those + points is expected. A fault is only + to - continuity.
+
+\subsection*{8.2 Receiver and ESC 3-wire lead pin mapping}
+{\small
+\begin{longtable}{>{\raggedright\arraybackslash}p{3.2cm} >{\raggedright\arraybackslash}p{2.0cm} >{\raggedright\arraybackslash}p{3.5cm} >{\raggedright\arraybackslash}p{3.5cm}}
+\toprule
+Wire color (typical) & Pin function & Connect to receiver pin row & Notes \\
+\midrule
+\endhead
+White/Yellow/Orange & Signal (S) & CH3 signal pin & ESC throttle command line \\
+Red & +5V BEC output & CH3 + pin (receiver power rail) & Powers receiver and servos if ESC has BEC \\
+Black/Brown & Ground (GND) & CH3 - pin & Must share common ground with all RC signal devices \\
+\bottomrule
+\end{longtable}
+}
+
+\subsection*{8.3 Servo connector mapping}
+{\small
+\begin{longtable}{>{\raggedright\arraybackslash}p{2.4cm} >{\raggedright\arraybackslash}p{2.6cm} >{\raggedright\arraybackslash}p{3.8cm} >{\raggedright\arraybackslash}p{3.8cm}}
+\toprule
+Receiver channel & Control surface & Pin order on receiver & Typical wire colors \\
+\midrule
+\endhead
+CH1 & Aileron & S / + / - & Orange or white / red / brown-black \\
+CH2 & Elevator & S / + / - & Orange or white / red / brown-black \\
+CH4 (optional) & Rudder & S / + / - & Orange or white / red / brown-black \\
+CH5/CH6 (optional) & Aux, flaps, telemetry trigger & S / + / - & Orange or white / red / brown-black \\
+\bottomrule
+\end{longtable}
+}
+
+\subsection*{8.4 MPPT and high-current wiring map}
+{\small
+\begin{longtable}{>{\raggedright\arraybackslash}p{3.8cm} >{\raggedright\arraybackslash}p{3.2cm} >{\raggedright\arraybackslash}p{4.0cm}}
+\toprule
+Connection & Wire/fuse recommendation & Purpose \\
+\midrule
+\endhead
+Solar+ to MPPT IN+ & PV fuse 2-3A near panel & Protect panel branch from short faults \\
+MPPT OUT+ to battery bus+ & 10A fuse near battery bus & Protect charger branch and wiring \\
+Battery bus+ to ESC+ & 40A main fuse near battery & Protect propulsion high-current branch \\
+All negatives (solar/MPPT/battery/ESC) & Common ground return bus & Required for charger and RC signal reference \\
+\bottomrule
+\end{longtable}
+}
+
+\subsection*{8.5 Pre-power checklist}
+\begin{enumerate}
+  \item Remove propeller before bench wiring and ESC setup.
+  \item Confirm no hard short between main bus + and - (ohmmeter should not read near-zero steady value).
+  \item Confirm expected continuity between battery+, MPPT+, and ESC+ bus points.
+  \item Power receiver/ESC first from battery only, verify channel directions.
+  \item Connect solar and MPPT last, then confirm charging current with a wattmeter.
+\end{enumerate}
+
+\section*{9. Wiring Diagram C: Pin-level Connector Orientation}
+\begin{figure}[H]
+\centering
+\resizebox{0.96\linewidth}{!}{%
+\begin{tikzpicture}[
+    node distance=1.1cm and 1.2cm,
+    box/.style={draw, rounded corners, align=center, minimum width=2.8cm, minimum height=0.9cm, fill=blue!5},
+    pin/.style={draw, align=center, minimum width=1.4cm, minimum height=0.6cm},
+    line/.style={-{Latex[length=2mm]}, thick}
+]
+\node[box] (rx) {Receiver CH3 port};
+\node[pin, right=2.3cm of rx, fill=yellow!18] (sig) {S};
+\node[pin, below=0.05cm of sig, fill=red!12] (vcc) {+5V};
+\node[pin, below=0.05cm of vcc, fill=gray!18] (gnd) {GND};
+
+\node[box, left=2.3cm of rx] (esclead) {ESC 3-wire lead};
+\node[pin, left=2.0cm of sig, fill=yellow!18] (escsig) {White/Yellow};
+\node[pin, left=2.0cm of vcc, fill=red!12] (escvcc) {Red};
+\node[pin, left=2.0cm of gnd, fill=gray!18] (escgnd) {Black/Brown};
+
+\draw[line] (esclead) -- (rx);
+\draw[line] (escsig) -- (sig);
+\draw[line] (escvcc) -- (vcc);
+\draw[line] (escgnd) -- (gnd);
+\end{tikzpicture}
+}
+\caption{ESC lead to receiver CH3 mapping. Keep signal, +5V and GND aligned in the same row orientation.}
+\end{figure}
+
+\section*{10. LW-PLA and Carbon Tube Build Notes}
 \begin{itemize}
   \item LW-PLA should be printed hot enough for foaming expansion; tune flow down after expansion to reduce mass.
   \item Carbon tubes should carry main bending loads in wing spar caps or spar tube; printed parts should primarily transfer loads into tubes.
   \item Reinforce wing root and motor mount interfaces with local carbon doublers or thicker load-spreading printed inserts.
 \end{itemize}
 
-\section*{9. Sources}
+\section*{11. Sources}
 \begin{enumerate}
   \item Solar cell electrical reference (CSE125P-6BB): \url{https://solarinnova.net/en/product/cell-cse125p-6bb/}
   \item Genasun GVB-8 boost MPPT controller page: \url{https://sunforgellc.com/gvb-8/}
   \item Genasun GVB-8 datasheet/user manual: \url{https://sunforgellc.com/wp-content/uploads/2017/11/GENASUN-GVB-Boost-Manual.pdf}
   \item Genasun GV-10 MPPT controller page: \url{https://sunforgellc.com/gv-10/}
   \item TI BQ25798 product page (buck-boost charger with MPPT support): \url{https://www.ti.com/product/BQ25798}
+  \item TI BQ24650 datasheet: \url{https://www.ti.com/lit/gpn/bq24650}
+  \item TI BQ24650 EVM user guide: \url{https://www.ti.com/lit/ug/sluu444a/sluu444a.pdf}
   \item Thunder Power LiPo dimensions/spec chart: \url{https://www.chiefaircraft.com/downloads/tp-lipo.pdf}
   \item Tattu 650mAh 3S product page (dimensions): \url{https://www.gensace.de/tattu-r-line-650mah-11-1v-75c-3s1p-lipo-battery-pack-with-xt30-plug.html}
   \item Tattu 850mAh 3S product page (dimensions): \url{https://www.gensace.de/tattu-r-line-version-4-0-850mah-11-1v-75c-3s1p-lipo-battery-pack-with-xt30-plug.html}
