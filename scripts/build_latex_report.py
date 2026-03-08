@@ -26,6 +26,7 @@ from solar_plane.calculations import (
     electrical_power_required_w,
     propulsion_estimate,
     simulate_day,
+    solar_input_power_w,
     speed_sweep,
     stall_speed_mps,
     summarize_day,
@@ -162,6 +163,98 @@ def achievable_flight_hours(project: ProjectConfig, mission_speed: float, batter
     return max(0.0, summary["first_empty_hour"] - sim_project.mission.simulation_start_hour)
 
 
+def simulate_max_duration_hours(project: ProjectConfig, speed_mps: float, start_hour: float, max_hours: float = 24.0) -> float:
+    battery_cap_wh = project.battery.capacity_wh
+    battery_wh = battery_cap_wh * project.battery.start_soc
+    if battery_wh <= 0:
+        return 0.0
+
+    dt_h = project.mission.time_step_minutes / 60.0
+    p_req = electrical_power_required_w(project, speed_mps)
+
+    t = 0.0
+    while t < max_hours - 1e-9:
+        step = min(dt_h, max_hours - t)
+        hour = (start_hour + t) % 24.0
+        p_solar = solar_input_power_w(project, hour)
+        p_net = p_solar - p_req
+
+        if p_net >= 0:
+            delta_wh = p_net * step * project.battery.charge_efficiency
+            battery_wh = min(battery_cap_wh, battery_wh + delta_wh)
+            t += step
+            continue
+
+        discharge_rate_whph = (-p_net) / project.battery.discharge_efficiency
+        need_wh = discharge_rate_whph * step
+
+        if need_wh >= battery_wh:
+            t += battery_wh / discharge_rate_whph if discharge_rate_whph > 1e-9 else 0.0
+            return t
+
+        battery_wh -= need_wh
+        t += step
+
+    return max_hours
+
+
+def compute_time_distance_envelope(project: ProjectConfig, sweep: List[Dict[str, float]]) -> Dict[str, object]:
+    speed_candidates = sorted({row["speed_mps"] for row in sweep}, reverse=True)
+    start_candidates = [h / 6.0 for h in range(0, 24 * 6)]  # every 10 minutes
+
+    combos: List[Dict[str, float]] = []
+    for v in speed_candidates:
+        for start in start_candidates:
+            dur_h = simulate_max_duration_hours(project, v, start, max_hours=24.0)
+            dist_km = v * dur_h * 3.6
+            combos.append(
+                {
+                    "speed_mps": v,
+                    "start_hour": start,
+                    "duration_h": dur_h,
+                    "distance_km": dist_km,
+                }
+            )
+
+    max_dist_km = max(combo["distance_km"] for combo in combos)
+    max_plot_dist_km = int(min(500, math.floor(max_dist_km)))
+
+    envelope_rows: List[Dict[str, float]] = []
+    for d_km in range(1, max_plot_dist_km + 1):
+        best = None
+        best_time = float("inf")
+        for combo in combos:
+            if combo["distance_km"] + 1e-9 < d_km:
+                continue
+            t_h = d_km / (combo["speed_mps"] * 3.6)
+            if t_h < best_time:
+                best_time = t_h
+                best = combo
+        if best is None:
+            continue
+        envelope_rows.append(
+            {
+                "distance_km": float(d_km),
+                "time_h": best_time,
+                "speed_mps": best["speed_mps"],
+                "start_hour": best["start_hour"],
+            }
+        )
+
+    sample_distances = [10, 25, 50, 75, 100, 150, 200, 250, 300]
+    sample_rows: List[Dict[str, float]] = []
+    for target in sample_distances:
+        candidates = [r for r in envelope_rows if abs(r["distance_km"] - target) < 0.5]
+        if candidates:
+            sample_rows.append(candidates[0])
+
+    return {
+        "rows": envelope_rows,
+        "samples": sample_rows,
+        "max_distance_km": max_dist_km,
+    }
+
+
 def generate_plots(project: ProjectConfig, data: Dict[str, object], out_dir: Path) -> Dict[str, str]:
     fig_dir = out_dir / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -240,11 +333,39 @@ def generate_plots(project: ProjectConfig, data: Dict[str, object], out_dir: Pat
     plt.savefig(p4, dpi=220)
     plt.close()
 
+    envelope_rows = data["distance_time_envelope"]["rows"]
+    dist = [row["distance_km"] for row in envelope_rows]
+    time_h = [row["time_h"] for row in envelope_rows]
+    speed_kmh = [row["speed_mps"] * 3.6 for row in envelope_rows]
+
+    plt.figure(figsize=(7.4, 4.4))
+    ax1 = plt.gca()
+    ax1.plot(dist, time_h, color="#1B5E20", linewidth=2.2, label="Minimum feasible flight time")
+    ax1.set_xlabel("Distance [km]")
+    ax1.set_ylabel("Time [h]", color="#1B5E20")
+    ax1.tick_params(axis="y", labelcolor="#1B5E20")
+    ax1.set_title("Optimal Time vs Distance (No Ground Charging)")
+    ax1.grid(True, alpha=0.3)
+
+    ax2 = ax1.twinx()
+    ax2.plot(dist, speed_kmh, color="#6A1B9A", linewidth=1.6, linestyle="--", label="Optimal cruise speed")
+    ax2.set_ylabel("Speed [km/h]", color="#6A1B9A")
+    ax2.tick_params(axis="y", labelcolor="#6A1B9A")
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left")
+    p5 = fig_dir / "time_vs_distance_optimal.png"
+    plt.tight_layout()
+    plt.savefig(p5, dpi=220)
+    plt.close()
+
     return {
         "power_vs_speed": "figures/power_vs_speed.png",
         "solar_vs_load": "figures/solar_vs_load.png",
         "soc_vs_time": "figures/soc_vs_time.png",
         "duration_vs_battery": "figures/duration_vs_battery.png",
+        "time_vs_distance_optimal": "figures/time_vs_distance_optimal.png",
     }
 
 
@@ -280,6 +401,13 @@ def build_report_tex(project: ProjectConfig, data: Dict[str, object], fig_paths:
 
     first_empty = data["day_summary"]["first_empty_hour"]
     first_empty_text = "never" if first_empty < 0 else f"{first_empty:.2f}h"
+    envelope_samples_lines: List[str] = []
+    for s in data["distance_time_envelope"]["samples"]:
+        envelope_samples_lines.append(
+            f"\\item {s['distance_km']:.0f} km: {s['time_h']:.2f} h, "
+            f"optimal speed {s['speed_mps']*3.6:.1f} km/h, optimal start {s['start_hour']:.2f}h"
+        )
+    envelope_samples = "\n".join(envelope_samples_lines) if envelope_samples_lines else "\\item No feasible samples in selected range."
 
     return rf"""
 \documentclass[11pt]{{article}}
@@ -344,6 +472,17 @@ def build_report_tex(project: ProjectConfig, data: Dict[str, object], fig_paths:
 \includegraphics[width=0.9\linewidth]{{{fig_paths["duration_vs_battery"]}}}
 \caption{{Flight duration versus battery capacity (with and without solar support).}}
 \end{{figure}}
+
+\begin{{figure}}[H]
+\centering
+\includegraphics[width=0.92\linewidth]{{{fig_paths["time_vs_distance_optimal"]}}}
+\caption{{Time vs distance envelope without ground charging. For each distance, speed and departure time are optimized to minimize total flight time.}}
+\end{{figure}}
+
+\textbf{{Sample optimal points (no ground charging, battery starts at {project.battery.start_soc*100:.0f}\% SOC):}}
+\begin{{itemize}}
+{envelope_samples}
+\end{{itemize}}
 
 \section*{{4. Battery Feasibility for Your Battery Bay}}
 \begin{{itemize}}
@@ -582,6 +721,7 @@ def main() -> None:
 
     project = ProjectConfig()
     data = compute_report_data(project)
+    data["distance_time_envelope"] = compute_time_distance_envelope(project, data["sweep"])
     fig_paths = generate_plots(project, data, out_dir)
     tex = build_report_tex(project, data, fig_paths)
 

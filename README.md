@@ -45,6 +45,7 @@ Generated in `outputs/`:
 - `figures/solar_vs_load.png`
 - `figures/soc_vs_time.png`
 - `figures/duration_vs_battery.png`
+- `figures/time_vs_distance_optimal.png`
 
 ## Accuracy Notes
 - Aerodynamic power uses a classical drag polar: `CD = CD0 + k * CL^2`.
