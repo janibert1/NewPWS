@@ -97,32 +97,15 @@ def compute_report_data(project: ProjectConfig) -> Dict[str, object]:
     n_series_for_3s_buck_min = math.ceil(13.5 / vmp_cell)
     n_series_for_3s_buck_robust = math.ceil(15.0 / vmp_cell)
 
-    mppt_options = [
-        {
-            "name": "Genasun GVB-8-Li-CV",
-            "topology": "Boost MPPT (complete controller)",
-            "charge_profile": "Custom Li-ion CV setpoint (12.6V possible)",
-            "key_specs": "5-27V panel input, up to 8A output (114W at 14.2V)",
-            "fit_21_cells": "Yes; 21S panel Vmp ~11.6V is within boost range",
-            "source_url": "https://sunforgellc.com/gvb-8/",
-        },
-        {
-            "name": "Genasun GV-10-Li-CV",
-            "topology": "Buck MPPT (complete controller)",
-            "charge_profile": "Custom Li-ion CV profile available",
-            "key_specs": "10A output class; requires panel Vmp above battery charge voltage",
-            "fit_21_cells": "No for robust margin with 3S Li-ion at 12.6V",
-            "source_url": "https://sunforgellc.com/gv-10/",
-        },
-        {
-            "name": "TI BQ25798EVM",
-            "topology": "Buck-boost dev board (complete EVM)",
-            "charge_profile": "1-4 cell battery support via configuration",
-            "key_specs": "Integrated MPPT function, advanced control and integration effort",
-            "fit_21_cells": "Yes technically, but high development complexity",
-            "source_url": "https://www.ti.com/product/BQ25798",
-        },
-    ]
+    selected_mppt = {
+        "name": "TI BQ25798EVM",
+        "topology": "Buck-boost charger with MPPT support",
+        "charge_profile": "Configure for 3S Li-ion (12.6V CV) through I2C",
+        "key_specs": "3.6-24V input, 1-4 cell battery support, up to 5A charging current",
+        "fit_21_cells": "Yes; buck-boost handles panel voltage below and above battery charge voltage",
+        "source_url": "https://www.ti.com/product/BQ25798",
+        "evm_user_guide": "https://www.ti.com/lit/ug/sluucb5c/sluucb5c.pdf",
+    }
 
     return {
         "v_stall": v_stall,
@@ -151,7 +134,7 @@ def compute_report_data(project: ProjectConfig) -> Dict[str, object]:
         "panel_pmp_21s": panel_pmp_21s,
         "n_series_for_3s_buck_min": n_series_for_3s_buck_min,
         "n_series_for_3s_buck_robust": n_series_for_3s_buck_robust,
-        "mppt_options": mppt_options,
+        "selected_mppt": selected_mppt,
     }
 
 
@@ -395,16 +378,6 @@ def build_report_tex(project: ProjectConfig, data: Dict[str, object], fig_paths:
         )
     battery_table = "\n".join(battery_table_lines)
 
-    mppt_lines: List[str] = []
-    for row in data["mppt_options"]:
-        mppt_lines.append(
-            f"{tex_escape(row['name'])} & "
-            f"{tex_escape(row['topology'])} & "
-            f"{tex_escape(row['key_specs'])} & "
-            f"{tex_escape(row['fit_21_cells'])} \\\\"
-        )
-    mppt_table = "\n".join(mppt_lines)
-
     first_empty = data["day_summary"]["first_empty_hour"]
     first_empty_text = "never" if first_empty < 0 else f"{first_empty:.2f}h"
     envelope_samples_lines: List[str] = []
@@ -538,22 +511,19 @@ This panel voltage is below robust buck-MPPT headroom for charging a 3S Li-ion p
 For buck topologies, practical cell count is about {data["n_series_for_3s_buck_min"]} (minimum) to {data["n_series_for_3s_buck_robust"]} (recommended margin).
 Therefore, with 21 cells, a \textbf{{boost or buck-boost MPPT}} is the correct architecture.
 
-\subsection*{{MPPT module options}}
-\begin{{longtable}}{{p{{3.6cm}} p{{3.4cm}} p{{5.1cm}} p{{3.0cm}}}}
-\toprule
-Model & Topology & Key specs & Fits current 21-cell panel? \\
-\midrule
-\endhead
-{mppt_table}
-\bottomrule
-\end{{longtable}}
-
-\textbf{{Recommended for your build:}} Genasun GVB-8-Li-CV with custom 3S Li-ion charge profile (\SI{{12.6}}{{V}} CV), because it is a complete boost MPPT controller and matches low panel voltage operation.
+\subsection*{{Selected converter for this build}}
+\textbf{{Selected MPPT/buck-boost charger:}} {tex_escape(data["selected_mppt"]["name"])}
+\begin{{itemize}}
+  \item Topology: {tex_escape(data["selected_mppt"]["topology"])}
+  \item Charge profile: {tex_escape(data["selected_mppt"]["charge_profile"])}
+  \item Key specs used in this design: {tex_escape(data["selected_mppt"]["key_specs"])}
+  \item Fit with 21-cell + 3S architecture: {tex_escape(data["selected_mppt"]["fit_21_cells"])}
+\end{{itemize}}
 
 \subsection*{{Required supporting components around MPPT}}
 \begin{{itemize}}
   \item PV fuse near panel positive lead, sized around 1.25x panel Isc branch current.
-  \item Dedicated MPPT-to-battery branch fuse (about 10A for an 8A-class controller).
+  \item Dedicated MPPT-to-battery branch fuse (about 10A).
   \item Main battery fuse for propulsion branch (about 40A with your ESC/motor class).
   \item XT60 (or equivalent) connectors and 16--14 AWG wire on high-current paths.
 \end{{itemize}}
@@ -571,7 +541,7 @@ Model & Topology & Key specs & Fits current 21-cell panel? \\
 ]
 \node[io] (solar) {{Solar Array\\(21 cells)}};
 \node[safety, right=of solar] (sfuse) {{PV Fuse\\2--3A}};
-\node[block, right=of sfuse] (mppt) {{GVB-8-Li-CV\\Boost MPPT}};
+\node[block, right=of sfuse] (mppt) {{BQ25798EVM\\Buck-Boost MPPT}};
 \node[safety, right=of mppt] (mfuse) {{MPPT Fuse\\10A}};
 \node[safety, right=of mfuse] (bfuse) {{Main Fuse\\40A}};
 \node[io, right=of bfuse] (battery) {{3S Battery\\Bay-limited}};
@@ -679,6 +649,18 @@ All negatives (solar/MPPT/battery/ESC) & Common ground return bus & Required for
   \item Connect solar and MPPT last, then confirm charging current with a wattmeter.
 \end{{enumerate}}
 
+\subsection*{{8.6 Final companion-power wiring (exact implementation)}}
+\begin{{itemize}}
+  \item Battery bus + -> branch fuse 2A -> D36V50F5 VIN.
+  \item D36V50F5 VOUT 5V -> Pi Zero 2 W 5V (power input).
+  \item Battery bus + -> branch fuse 3A -> D30V33MAL VIN.
+  \item Set D30V33MAL VOUT = 4.0V before connecting modem.
+  \item D30V33MAL VOUT 4.0V -> A7670 VBAT.
+  \item A7670 GND, Pi GND, FC GND, battery - all tied together.
+  \item SpeedyBee F405 UART TX/RX <-> Pi UART RX/TX (crossed), same GND.
+  \item Pi USB/UART (per modem interface choice) -> A7670 data link.
+\end{{itemize}}
+
 \section*{{9. Wiring Diagram C: Pin-level Connector Orientation}}
 \begin{{figure}}[H]
 \centering
@@ -718,10 +700,9 @@ All negatives (solar/MPPT/battery/ESC) & Common ground return bus & Required for
 \section*{{11. Sources}}
 \begin{{enumerate}}
   \item Solar cell electrical reference (CSE125P-6BB): \url{{https://solarinnova.net/en/product/cell-cse125p-6bb/}}
-  \item Genasun GVB-8 boost MPPT controller page: \url{{https://sunforgellc.com/gvb-8/}}
-  \item Genasun GVB-8 datasheet/user manual: \url{{https://sunforgellc.com/wp-content/uploads/2017/11/GENASUN-GVB-Boost-Manual.pdf}}
-  \item Genasun GV-10 MPPT controller page: \url{{https://sunforgellc.com/gv-10/}}
   \item TI BQ25798 product page (buck-boost charger with MPPT support): \url{{https://www.ti.com/product/BQ25798}}
+  \item TI BQ25798 datasheet: \url{{https://www.ti.com/lit/gpn/bq25798}}
+  \item TI BQ25798EVM user guide: \url{{https://www.ti.com/lit/ug/sluucb5c/sluucb5c.pdf}}
   \item TI BQ24650 datasheet: \url{{https://www.ti.com/lit/gpn/bq24650}}
   \item TI BQ24650 EVM user guide: \url{{https://www.ti.com/lit/ug/sluu444a/sluu444a.pdf}}
   \item SpeedyBee F405 product/target reference: \url{{https://www.speedybee.com/speedybee-f405-wing-app-fixed-wing-flight-controller/}}

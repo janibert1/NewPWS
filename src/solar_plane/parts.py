@@ -83,10 +83,10 @@ def build_parts_list(project: ProjectConfig) -> List[Dict[str, str]]:
         {
             "category": "Needed",
             "item": "Solar MPPT charger",
-            "spec": "Genasun GVB-8-Li-CV boost MPPT controller (custom 12.6V Li-ion charge profile)",
+            "spec": "TI BQ25798EVM buck-boost MPPT charger module (3S Li-ion profile, I2C configurable)",
             "qty": "1",
-            "est_mass_g": "35",
-            "est_cost_usd": "120-180",
+            "est_mass_g": "45",
+            "est_cost_usd": "179",
             "status": "Buy",
         },
         {

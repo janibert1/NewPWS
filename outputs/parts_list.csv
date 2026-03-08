@@ -6,7 +6,7 @@ Owned,Servos,9g class micro servos,4,36,0,Have
 Owned,Solar cells,"Monocrystalline 125x125 mm, qty 21",21,300,0,Have
 Owned,Receiver + transmitter,2.4 GHz RC link,1 set,30,0,Have
 Needed,Battery pack,"3S LiPo in bay <= 54x31x19 mm, target >= 8.33 Wh",1,49-90,18-35,Buy
-Needed,Solar MPPT charger,Genasun GVB-8-Li-CV boost MPPT controller (custom 12.6V Li-ion charge profile),1,35,120-180,Buy
+Needed,Solar MPPT charger,"TI BQ25798EVM buck-boost MPPT charger module (3S Li-ion profile, I2C configurable)",1,45,179,Buy
 Needed,MPPT branch fuse,10A inline fuse between MPPT output and battery,1,8,6,Buy
 Needed,Power monitor,Inline watt meter/current sensor (>=60A),1,25,20,Buy
 Needed,Flight controller,SpeedyBee F405 Wing,1,15,45,Buy
