@@ -23,6 +23,7 @@ from solar_plane.battery import (
     theoretical_bay_energy_wh,
 )
 from solar_plane.calculations import (
+    auxiliary_electrical_power_w,
     electrical_power_required_w,
     propulsion_estimate,
     simulate_day,
@@ -30,6 +31,7 @@ from solar_plane.calculations import (
     speed_sweep,
     stall_speed_mps,
     summarize_day,
+    total_electrical_power_required_w,
 )
 
 
@@ -67,13 +69,15 @@ def compute_report_data(project: ProjectConfig) -> Dict[str, object]:
     sweep = speed_sweep(project, v_min=v_min, v_max=20.0, v_step=0.25)
     best = best_endurance_speed(project, sweep)
     mission_speed = max(best["speed_mps"], 1.4 * v_stall)
-    mission_power = electrical_power_required_w(project, mission_speed)
+    mission_power = total_electrical_power_required_w(project, mission_speed)
+    propulsion_power_at_mission = electrical_power_required_w(project, mission_speed)
+    avionics_power = auxiliary_electrical_power_w(project)
     propulsion = propulsion_estimate(project)
     day_rows = simulate_day(project, cruise_speed_mps=mission_speed)
     day_summary = summarize_day(day_rows)
 
-    reserve_wh_30 = reserve_energy_wh(best["power_required_w"], reserve_minutes=30.0, usable_fraction=0.80)
-    reserve_wh_20 = reserve_energy_wh(best["power_required_w"], reserve_minutes=20.0, usable_fraction=0.80)
+    reserve_wh_30 = reserve_energy_wh(best["power_required_total_w"], reserve_minutes=30.0, usable_fraction=0.80)
+    reserve_wh_20 = reserve_energy_wh(best["power_required_total_w"], reserve_minutes=20.0, usable_fraction=0.80)
     min_capacity_mah_30 = reserve_wh_30 / project.battery.nominal_voltage_v * 1000.0
     bay_wh_450 = theoretical_bay_energy_wh(project, volumetric_density_wh_l=450.0)
     bay_wh_550 = theoretical_bay_energy_wh(project, volumetric_density_wh_l=550.0)
@@ -126,6 +130,8 @@ def compute_report_data(project: ProjectConfig) -> Dict[str, object]:
         "best": best,
         "mission_speed": mission_speed,
         "mission_power": mission_power,
+        "mission_propulsion_power": propulsion_power_at_mission,
+        "avionics_power": avionics_power,
         "propulsion": propulsion,
         "day_rows": day_rows,
         "day_summary": day_summary,
@@ -170,7 +176,7 @@ def simulate_max_duration_hours(project: ProjectConfig, speed_mps: float, start_
         return 0.0
 
     dt_h = project.mission.time_step_minutes / 60.0
-    p_req = electrical_power_required_w(project, speed_mps)
+    p_req = total_electrical_power_required_w(project, speed_mps)
 
     t = 0.0
     while t < max_hours - 1e-9:
@@ -437,14 +443,30 @@ def build_report_tex(project: ProjectConfig, data: Dict[str, object], fig_paths:
   \item Battery bay hard limits: depth \SI{{{project.battery.max_depth_mm:.0f}}}{{mm}}, width \SI{{{project.battery.max_width_mm:.0f}}}{{mm}} (+\SI{{{project.battery.width_overrun_allowed_mm:.0f}}}{{mm}} tolerated), height \SI{{{project.battery.max_height_mm:.0f}}}{{mm}}.
   \item Existing propulsion hardware: D3530 1100KV, 14x4.7 slow-fly prop (CW), 50A ESC.
 \end{{itemize}}
+\subsection*{{Chosen control/telemetry chain (user-selected)}}
+\begin{{itemize}}
+  \item SpeedyBee F405
+  \item UART MAVLink link to Raspberry Pi Zero 2 W
+  \item mavlink-router on Pi
+  \item A7670 LTE modem for WAN uplink
+  \item Internet tunnel to QGroundControl
+\end{{itemize}}
+\begin{{itemize}}
+  \item Avionics power included in calculations: FC \SI{{{project.avionics.flight_controller_power_w:.1f}}}{{W}} + Pi \SI{{{project.avionics.companion_power_w:.1f}}}{{W}} + LTE modem avg \SI{{{project.avionics.modem_avg_power_w:.1f}}}{{W}} + misc \SI{{{project.avionics.misc_power_w:.1f}}}{{W}} = \SI{{{project.avionics.total_power_w:.1f}}}{{W}}.
+  \item Compatibility check: UART level is 3.3V on Pi GPIO UART and typical FC UART logic, so direct serial data interface is valid when grounds are shared.
+  \item Risk 1 (power): A7670-class LTE modules have high TX current pulses; do not power the modem from Pi 5V pin. Use a dedicated regulator and local bulk capacitance.
+  \item Risk 2 (control): cellular latency/coverage can drop unexpectedly; keep ELRS as primary C2 and use LTE for telemetry/backup control path.
+  \item Risk 3 (firmware headroom): F405 targets can be flash-limited for advanced ArduPilot feature sets; verify your exact target build fits required features before finalizing.
+\end{{itemize}}
 
 \section*{{2. Core Performance Results}}
 \begin{{itemize}}
   \item Estimated stall speed: \SI{{{data["v_stall"]:.2f}}}{{m/s}}
   \item Best-endurance speed: \SI{{{data["best"]["speed_mps"]:.2f}}}{{m/s}}
   \item Mission speed used (1.4 x stall margin): \SI{{{data["mission_speed"]:.2f}}}{{m/s}}
-  \item Electrical power at best-endurance speed: \SI{{{data["best"]["power_required_w"]:.2f}}}{{W}}
-  \item Electrical power at mission speed: \SI{{{data["mission_power"]:.2f}}}{{W}}
+  \item Propulsion electrical power at best-endurance speed: \SI{{{data["best"]["power_required_w"]:.2f}}}{{W}}
+  \item Total electrical power at best-endurance speed (propulsion + avionics): \SI{{{data["best"]["power_required_total_w"]:.2f}}}{{W}}
+  \item Total electrical power at mission speed: \SI{{{data["mission_power"]:.2f}}}{{W}} (propulsion \SI{{{data["mission_propulsion_power"]:.2f}}}{{W}} + avionics \SI{{{data["avionics_power"]:.2f}}}{{W}})
   \item Motor estimate: loaded RPM \SI{{{data["propulsion"]["loaded_rpm"]:.0f}}}{{rpm}}, current \SI{{{data["propulsion"]["estimated_current_a"]:.1f}}}{{A}}, static thrust \SI{{{data["propulsion"]["estimated_static_thrust_n"]:.1f}}}{{N}}
 \end{{itemize}}
 
@@ -452,13 +474,13 @@ def build_report_tex(project: ProjectConfig, data: Dict[str, object], fig_paths:
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.9\linewidth]{{{fig_paths["power_vs_speed"]}}}
-\caption{{Electrical power required vs airspeed.}}
+\caption{{Propulsion electrical power required vs airspeed.}}
 \end{{figure}}
 
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.9\linewidth]{{{fig_paths["solar_vs_load"]}}}
-\caption{{Day profile power balance: solar input vs cruise load.}}
+\caption{{Day profile power balance: solar input vs total cruise load (propulsion + avionics).}}
 \end{{figure}}
 
 \begin{{figure}}[H]
@@ -702,6 +724,11 @@ All negatives (solar/MPPT/battery/ESC) & Common ground return bus & Required for
   \item TI BQ25798 product page (buck-boost charger with MPPT support): \url{{https://www.ti.com/product/BQ25798}}
   \item TI BQ24650 datasheet: \url{{https://www.ti.com/lit/gpn/bq24650}}
   \item TI BQ24650 EVM user guide: \url{{https://www.ti.com/lit/ug/sluu444a/sluu444a.pdf}}
+  \item SpeedyBee F405 product/target reference: \url{{https://www.speedybee.com/speedybee-f405-wing-app-fixed-wing-flight-controller/}}
+  \item ArduPilot note on F4 flash constraints: \url{{https://ardupilot.org/copter/docs/common-limited-firmware.html}}
+  \item SIMCom A7670 hardware design guide (power supply and burst current guidance): \url{{https://simcom.ee/documents/A76XX/A76XX%20Series_Hardware%20Design_V1.07.pdf}}
+  \item MAVLink Router project/documentation: \url{{https://github.com/mavlink-router/mavlink-router}}
+  \item QGroundControl project: \url{{https://qgroundcontrol.com/}}
   \item Thunder Power LiPo dimensions/spec chart: \url{{https://www.chiefaircraft.com/downloads/tp-lipo.pdf}}
   \item Tattu 650mAh 3S product page (dimensions): \url{{https://www.gensace.de/tattu-r-line-650mah-11-1v-75c-3s1p-lipo-battery-pack-with-xt30-plug.html}}
   \item Tattu 850mAh 3S product page (dimensions): \url{{https://www.gensace.de/tattu-r-line-version-4-0-850mah-11-1v-75c-3s1p-lipo-battery-pack-with-xt30-plug.html}}

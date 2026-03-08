@@ -26,14 +26,30 @@
   \item Battery bay hard limits: depth \SI{54}{mm}, width \SI{31}{mm} (+\SI{3}{mm} tolerated), height \SI{19}{mm}.
   \item Existing propulsion hardware: D3530 1100KV, 14x4.7 slow-fly prop (CW), 50A ESC.
 \end{itemize}
+\subsection*{Chosen control/telemetry chain (user-selected)}
+\begin{itemize}
+  \item SpeedyBee F405
+  \item UART MAVLink link to Raspberry Pi Zero 2 W
+  \item mavlink-router on Pi
+  \item A7670 LTE modem for WAN uplink
+  \item Internet tunnel to QGroundControl
+\end{itemize}
+\begin{itemize}
+  \item Avionics power included in calculations: FC \SI{1.0}{W} + Pi \SI{1.8}{W} + LTE modem avg \SI{3.0}{W} + misc \SI{0.5}{W} = \SI{6.3}{W}.
+  \item Compatibility check: UART level is 3.3V on Pi GPIO UART and typical FC UART logic, so direct serial data interface is valid when grounds are shared.
+  \item Risk 1 (power): A7670-class LTE modules have high TX current pulses; do not power the modem from Pi 5V pin. Use a dedicated regulator and local bulk capacitance.
+  \item Risk 2 (control): cellular latency/coverage can drop unexpectedly; keep ELRS as primary C2 and use LTE for telemetry/backup control path.
+  \item Risk 3 (firmware headroom): F405 targets can be flash-limited for advanced ArduPilot feature sets; verify your exact target build fits required features before finalizing.
+\end{itemize}
 
 \section*{2. Core Performance Results}
 \begin{itemize}
   \item Estimated stall speed: \SI{6.42}{m/s}
   \item Best-endurance speed: \SI{8.25}{m/s}
   \item Mission speed used (1.4 x stall margin): \SI{8.98}{m/s}
-  \item Electrical power at best-endurance speed: \SI{17.95}{W}
-  \item Electrical power at mission speed: \SI{21.41}{W}
+  \item Propulsion electrical power at best-endurance speed: \SI{17.95}{W}
+  \item Total electrical power at best-endurance speed (propulsion + avionics): \SI{24.25}{W}
+  \item Total electrical power at mission speed: \SI{27.71}{W} (propulsion \SI{21.41}{W} + avionics \SI{6.30}{W})
   \item Motor estimate: loaded RPM \SI{5417}{rpm}, current \SI{28.0}{A}, static thrust \SI{12.0}{N}
 \end{itemize}
 
@@ -41,13 +57,13 @@
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.9\linewidth]{figures/power_vs_speed.png}
-\caption{Electrical power required vs airspeed.}
+\caption{Propulsion electrical power required vs airspeed.}
 \end{figure}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.9\linewidth]{figures/solar_vs_load.png}
-\caption{Day profile power balance: solar input vs cruise load.}
+\caption{Day profile power balance: solar input vs total cruise load (propulsion + avionics).}
 \end{figure}
 
 \begin{figure}[H]
@@ -70,22 +86,21 @@
 
 \textbf{Sample optimal points (no ground charging, battery starts at 100\% SOC):}
 \begin{itemize}
-\item 10 km: 0.17 h, optimal speed 59.4 km/h, optimal start 11.67h
-\item 25 km: 0.48 h, optimal speed 52.2 km/h, optimal start 11.17h
-\item 50 km: 0.99 h, optimal speed 50.4 km/h, optimal start 11.17h
-\item 75 km: 1.52 h, optimal speed 49.5 km/h, optimal start 10.83h
-\item 100 km: 2.06 h, optimal speed 48.6 km/h, optimal start 10.50h
-\item 150 km: 3.14 h, optimal speed 47.7 km/h, optimal start 10.17h
-\item 200 km: 4.27 h, optimal speed 46.8 km/h, optimal start 9.83h
-\item 250 km: 6.04 h, optimal speed 41.4 km/h, optimal start 9.00h
+\item 10 km: 0.17 h, optimal speed 57.6 km/h, optimal start 11.33h
+\item 25 km: 0.50 h, optimal speed 50.4 km/h, optimal start 11.00h
+\item 50 km: 1.03 h, optimal speed 48.6 km/h, optimal start 11.17h
+\item 75 km: 1.57 h, optimal speed 47.7 km/h, optimal start 11.00h
+\item 100 km: 2.14 h, optimal speed 46.8 km/h, optimal start 10.50h
+\item 150 km: 3.27 h, optimal speed 45.9 km/h, optimal start 10.17h
+\item 200 km: 4.54 h, optimal speed 44.1 km/h, optimal start 9.67h
 \end{itemize}
 
 \section*{4. Battery Feasibility for Your Battery Bay}
 \begin{itemize}
-  \item 30-minute reserve target: \SI{11.22}{Wh} (minimum \SI{1011}{mAh} at 3S nominal).
-  \item 20-minute reserve target: \SI{7.48}{Wh}.
+  \item 30-minute reserve target: \SI{15.16}{Wh} (minimum \SI{1365}{mAh} at 3S nominal).
+  \item 20-minute reserve target: \SI{10.10}{Wh}.
   \item Theoretical max energy in bay (450--550 Wh/L): \SI{14.31}{Wh} to \SI{17.49}{Wh}.
-  \item Daylight simulation minimum SOC: 0.0\%, final SOC: 0.0\%, first empty time: 8.50h.
+  \item Daylight simulation minimum SOC: 0.0\%, final SOC: 0.0\%, first empty time: 8.33h.
 \end{itemize}
 
 \subsection*{Researched battery options}
@@ -303,6 +318,11 @@ All negatives (solar/MPPT/battery/ESC) & Common ground return bus & Required for
   \item TI BQ25798 product page (buck-boost charger with MPPT support): \url{https://www.ti.com/product/BQ25798}
   \item TI BQ24650 datasheet: \url{https://www.ti.com/lit/gpn/bq24650}
   \item TI BQ24650 EVM user guide: \url{https://www.ti.com/lit/ug/sluu444a/sluu444a.pdf}
+  \item SpeedyBee F405 product/target reference: \url{https://www.speedybee.com/speedybee-f405-wing-app-fixed-wing-flight-controller/}
+  \item ArduPilot note on F4 flash constraints: \url{https://ardupilot.org/copter/docs/common-limited-firmware.html}
+  \item SIMCom A7670 hardware design guide (power supply and burst current guidance): \url{https://simcom.ee/documents/A76XX/A76XX%20Series_Hardware%20Design_V1.07.pdf}
+  \item MAVLink Router project/documentation: \url{https://github.com/mavlink-router/mavlink-router}
+  \item QGroundControl project: \url{https://qgroundcontrol.com/}
   \item Thunder Power LiPo dimensions/spec chart: \url{https://www.chiefaircraft.com/downloads/tp-lipo.pdf}
   \item Tattu 650mAh 3S product page (dimensions): \url{https://www.gensace.de/tattu-r-line-650mah-11-1v-75c-3s1p-lipo-battery-pack-with-xt30-plug.html}
   \item Tattu 850mAh 3S product page (dimensions): \url{https://www.gensace.de/tattu-r-line-version-4-0-850mah-11-1v-75c-3s1p-lipo-battery-pack-with-xt30-plug.html}

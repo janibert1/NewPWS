@@ -35,6 +35,14 @@ def electrical_power_required_w(project: ProjectConfig, speed_mps: float) -> flo
     return shaft_power_w / chain_eta
 
 
+def auxiliary_electrical_power_w(project: ProjectConfig) -> float:
+    return project.avionics.total_power_w
+
+
+def total_electrical_power_required_w(project: ProjectConfig, speed_mps: float) -> float:
+    return electrical_power_required_w(project, speed_mps) + auxiliary_electrical_power_w(project)
+
+
 def speed_sweep(project: ProjectConfig, v_min: float, v_max: float, v_step: float = 0.25) -> List[Dict[str, float]]:
     rows: List[Dict[str, float]] = []
     v = v_min
@@ -47,6 +55,7 @@ def speed_sweep(project: ProjectConfig, v_min: float, v_max: float, v_step: floa
                 "cd": aero["cd"],
                 "drag_n": aero["drag_n"],
                 "power_required_w": electrical_power_required_w(project, v),
+                "power_required_total_w": total_electrical_power_required_w(project, v),
             }
         )
         v += v_step
@@ -54,7 +63,7 @@ def speed_sweep(project: ProjectConfig, v_min: float, v_max: float, v_step: floa
 
 
 def best_endurance_speed(project: ProjectConfig, sweep_rows: List[Dict[str, float]]) -> Dict[str, float]:
-    return min(sweep_rows, key=lambda row: row["power_required_w"])
+    return min(sweep_rows, key=lambda row: row["power_required_total_w"])
 
 
 def propulsion_estimate(project: ProjectConfig, rho: float = SEA_LEVEL_DENSITY_KG_M3) -> Dict[str, float]:
@@ -107,7 +116,9 @@ def solar_input_power_w(project: ProjectConfig, hour: float) -> float:
 def simulate_day(project: ProjectConfig, cruise_speed_mps: float) -> List[Dict[str, float]]:
     dt_h = project.mission.time_step_minutes / 60.0
     battery_wh = project.battery.capacity_wh * project.battery.start_soc
-    required_power_w = electrical_power_required_w(project, cruise_speed_mps)
+    propulsion_power_w = electrical_power_required_w(project, cruise_speed_mps)
+    avionics_power_w = auxiliary_electrical_power_w(project)
+    required_power_w = propulsion_power_w + avionics_power_w
 
     rows: List[Dict[str, float]] = []
     t = project.mission.simulation_start_hour
@@ -128,6 +139,8 @@ def simulate_day(project: ProjectConfig, cruise_speed_mps: float) -> List[Dict[s
                 "hour": t,
                 "irradiance_w_m2": irradiance_w_m2(project, t),
                 "solar_input_w": p_solar,
+                "propulsion_power_w": propulsion_power_w,
+                "avionics_power_w": avionics_power_w,
                 "required_power_w": required_power_w,
                 "net_power_w": p_net,
                 "battery_wh": battery_wh,

@@ -12,7 +12,15 @@ if str(SRC) not in sys.path:
 
 from solar_plane import ProjectConfig, best_endurance_speed, build_parts_list
 from solar_plane.battery import default_battery_options, evaluate_battery_options, reserve_energy_wh, theoretical_bay_energy_wh
-from solar_plane.calculations import propulsion_estimate, simulate_day, speed_sweep, stall_speed_mps, summarize_day
+from solar_plane.calculations import (
+    auxiliary_electrical_power_w,
+    propulsion_estimate,
+    simulate_day,
+    speed_sweep,
+    stall_speed_mps,
+    summarize_day,
+    total_electrical_power_required_w,
+)
 from solar_plane.reporting import build_markdown_report, write_csv
 
 
@@ -44,7 +52,7 @@ def main() -> None:
     sim_rows = simulate_day(project, cruise_speed_mps=mission_speed)
     mission_summary = summarize_day(sim_rows)
     parts = build_parts_list(project)
-    reserve_wh = reserve_energy_wh(best["power_required_w"], reserve_minutes=30.0, usable_fraction=0.80)
+    reserve_wh = reserve_energy_wh(best["power_required_total_w"], reserve_minutes=30.0, usable_fraction=0.80)
     battery_rows = evaluate_battery_options(project, reserve_wh, default_battery_options())
     bay_theoretical_wh = theoretical_bay_energy_wh(project, volumetric_density_wh_l=450.0)
 
@@ -71,7 +79,9 @@ def main() -> None:
     print(f"Stall speed: {v_stall:.2f} m/s")
     print(f"Best endurance speed: {best['speed_mps']:.2f} m/s")
     print(f"Mission cruise speed used: {mission_speed:.2f} m/s")
-    print(f"Power required at best endurance: {best['power_required_w']:.2f} W")
+    print(f"Propulsion-only power at best endurance: {best['power_required_w']:.2f} W")
+    print(f"Avionics + cellular power budget: {auxiliary_electrical_power_w(project):.2f} W")
+    print(f"Total electrical power at best endurance: {total_electrical_power_required_w(project, best['speed_mps']):.2f} W")
     print(f"30-min reserve target (usable): {reserve_wh:.2f} Wh")
     print(f"Theoretical battery-bay ceiling (~450 Wh/L): {bay_theoretical_wh:.2f} Wh")
     print(f"Estimated full-throttle current: {propulsion['estimated_current_a']:.1f} A")

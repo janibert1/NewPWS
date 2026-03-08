@@ -9,6 +9,10 @@ Needed,Battery pack,"3S LiPo in bay <= 54x31x19 mm, target >= 8.33 Wh",1,49-90,1
 Needed,Solar MPPT charger,Genasun GVB-8-Li-CV boost MPPT controller (custom 12.6V Li-ion charge profile),1,35,120-180,Buy
 Needed,MPPT branch fuse,10A inline fuse between MPPT output and battery,1,8,6,Buy
 Needed,Power monitor,Inline watt meter/current sensor (>=60A),1,25,20,Buy
+Needed,Flight controller,SpeedyBee F405 Wing,1,15,45,Buy
+Needed,Companion computer,Raspberry Pi Zero 2 W,1,12,15,Buy
+Needed,LTE modem,A7670 LTE modem + SIM,1,20,25,Buy
+Needed,Companion power regulator,Dedicated 5V regulator for Pi and separate modem power rail with bulk capacitors,1 set,30,18,Buy
 Needed,Fuse + holder,40A automotive blade fuse on battery line,1,10,8,Buy
 Needed,Spar material,Carbon tube/spar caps sized for 3m span,1 set,150,45,Buy
 Needed,Airframe material,Foam or balsa skin + adhesive + covering film,1 set,400,55,Buy

@@ -52,7 +52,9 @@ def build_markdown_report(
 - Stall speed estimate: {stall_speed:.2f} m/s
 - Best endurance cruise speed: {best_row["speed_mps"]:.2f} m/s
 - Recommended mission cruise speed (stall margin): {mission_speed:.2f} m/s
-- Power needed at best endurance speed: {best_row["power_required_w"]:.2f} W (electrical)
+- Propulsion electrical power at best endurance speed: {best_row["power_required_w"]:.2f} W
+- Avionics + cellular stack power: {project.avionics.total_power_w:.2f} W
+- Total electrical power at best endurance speed: {best_row["power_required_total_w"]:.2f} W
 - Lift coefficient at best endurance speed: CL={best_row["cl"]:.3f}
 - Drag coefficient at best endurance speed: CD={best_row["cd"]:.4f}
 

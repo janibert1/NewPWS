@@ -13,7 +13,9 @@
 - Stall speed estimate: 6.42 m/s
 - Best endurance cruise speed: 8.25 m/s
 - Recommended mission cruise speed (stall margin): 8.98 m/s
-- Power needed at best endurance speed: 17.95 W (electrical)
+- Propulsion electrical power at best endurance speed: 17.95 W
+- Avionics + cellular stack power: 6.30 W
+- Total electrical power at best endurance speed: 24.25 W
 - Lift coefficient at best endurance speed: CL=0.726
 - Drag coefficient at best endurance speed: CD=0.0516
 
@@ -33,12 +35,12 @@
 - Minimum state of charge: 0.0%
 - Final state of charge at end of simulation: 0.0%
 - Maximum state of charge: 100.0%
-- Battery first hits empty at hour: 8.50
+- Battery first hits empty at hour: 8.33
 
 ## Battery Bay Feasibility
 - Battery bay limit: 54 x 31 x 19 mm
 - Theoretical energy upper bound in that volume (~450 Wh/L): 14.31 Wh
-- 30-minute reserve target (at best-endurance electrical power, 80% usable): 11.22 Wh
+- 30-minute reserve target (at best-endurance electrical power, 80% usable): 15.16 Wh
 - Strict-fit candidate batteries from researched list: Thunder Power Pro Lite V2 3S 500mAh 70C
 - Strict-fit batteries that also meet the reserve target: None
 

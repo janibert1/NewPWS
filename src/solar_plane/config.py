@@ -98,12 +98,31 @@ class MissionConfig:
 
 
 @dataclass
+class AvionicsConfig:
+    flight_controller_name: str = "SpeedyBee F405"
+    companion_name: str = "Raspberry Pi Zero 2 W"
+    modem_name: str = "A7670 LTE modem"
+    protocol_fc_to_pi: str = "UART MAVLink"
+    software_bridge: str = "mavlink-router"
+    gcs_name: str = "QGroundControl"
+    flight_controller_power_w: float = 1.0
+    companion_power_w: float = 1.8
+    modem_avg_power_w: float = 3.0
+    misc_power_w: float = 0.5
+
+    @property
+    def total_power_w(self) -> float:
+        return self.flight_controller_power_w + self.companion_power_w + self.modem_avg_power_w + self.misc_power_w
+
+
+@dataclass
 class ProjectConfig:
     airframe: AirframeConfig = field(default_factory=AirframeConfig)
     propulsion: PropulsionConfig = field(default_factory=PropulsionConfig)
     solar: SolarConfig = field(default_factory=SolarConfig)
     battery: BatteryConfig = field(default_factory=BatteryConfig)
     mission: MissionConfig = field(default_factory=MissionConfig)
+    avionics: AvionicsConfig = field(default_factory=AvionicsConfig)
 
     def max_panel_cells_from_wing(self, packing_factor: float = 0.72) -> int:
         usable_area = self.airframe.wing_area_m2 * packing_factor

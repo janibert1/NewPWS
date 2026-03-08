@@ -1,5 +1,6 @@
 from .config import (
     AirframeConfig,
+    AvionicsConfig,
     BatteryConfig,
     MissionConfig,
     ProjectConfig,
@@ -7,6 +8,7 @@ from .config import (
     SolarConfig,
 )
 from .calculations import (
+    auxiliary_electrical_power_w,
     best_endurance_speed,
     electrical_power_required_w,
     propulsion_estimate,
@@ -14,6 +16,7 @@ from .calculations import (
     speed_sweep,
     stall_speed_mps,
     summarize_day,
+    total_electrical_power_required_w,
 )
 from .parts import build_parts_list
 from .battery import (
@@ -27,11 +30,13 @@ from .battery import (
 
 __all__ = [
     "AirframeConfig",
+    "AvionicsConfig",
     "BatteryConfig",
     "MissionConfig",
     "ProjectConfig",
     "PropulsionConfig",
     "SolarConfig",
+    "auxiliary_electrical_power_w",
     "best_endurance_speed",
     "electrical_power_required_w",
     "propulsion_estimate",
@@ -39,6 +44,7 @@ __all__ = [
     "speed_sweep",
     "stall_speed_mps",
     "summarize_day",
+    "total_electrical_power_required_w",
     "build_parts_list",
     "BatteryOption",
     "battery_bay_volume_liters",
