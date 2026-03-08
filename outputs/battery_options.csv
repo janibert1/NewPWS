@@ -1,0 +1,5 @@
+name,capacity_mah,energy_wh,mass_g,depth_mm,width_mm,height_mm,strict_fit,fit_if_width_overrun_only,meets_30min_reserve,source_url
+Thunder Power Pro Lite V2 3S 500mAh 70C,500,5.55,49,53,30,13,True,True,False,https://www.chiefaircraft.com/downloads/tp-lipo.pdf
+Thunder Power Pro Lite V2 3S 750mAh 70C,750,8.32,69,55,31,18,False,False,False,https://www.chiefaircraft.com/downloads/tp-lipo.pdf
+Tattu R-Line 3S 650mAh 75C,650,7.21,70,58,31,16,False,False,False,https://www.gensace.de/tattu-r-line-650mah-11-1v-75c-3s1p-lipo-battery-pack-with-xt30-plug.html
+Tattu R-Line 3S 850mAh 75C,850,9.43,91,58,30,22,False,False,False,https://www.gensace.de/tattu-r-line-version-4-0-850mah-11-1v-75c-3s1p-lipo-battery-pack-with-xt30-plug.html
