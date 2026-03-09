@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import copy
+import io
 import math
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -33,6 +36,10 @@ from solar_plane.calculations import (
     summarize_day,
     total_electrical_power_required_w,
 )
+
+EARTH_RADIUS_KM = 6371.0
+AMSTERDAM_LAT = 52.3676
+AMSTERDAM_LON = 4.9041
 
 
 def tex_escape(text: str) -> str:
@@ -60,6 +67,45 @@ def parse_args() -> argparse.Namespace:
         help="Path to tectonic executable.",
     )
     return p.parse_args()
+
+
+def daylight_profiles() -> List[Dict[str, object]]:
+    return [
+        {
+            "key": "winter",
+            "label": "Winter (min daylight)",
+            "sunrise_hour": 8.75,
+            "sunset_hour": 16.50,
+            "peak_irradiance_w_m2": 550.0,
+            "color": "#1565C0",
+        },
+        {
+            "key": "spring",
+            "label": "Spring (mid daylight)",
+            "sunrise_hour": 6.75,
+            "sunset_hour": 18.75,
+            "peak_irradiance_w_m2": 850.0,
+            "color": "#2E7D32",
+        },
+        {
+            "key": "summer",
+            "label": "Summer (max daylight)",
+            "sunrise_hour": 5.25,
+            "sunset_hour": 22.00,
+            "peak_irradiance_w_m2": 1000.0,
+            "color": "#EF6C00",
+        },
+    ]
+
+
+def apply_daylight_profile(project: ProjectConfig, profile: Dict[str, object]) -> ProjectConfig:
+    prof_project = copy.deepcopy(project)
+    prof_project.mission.sunrise_hour = float(profile["sunrise_hour"])
+    prof_project.mission.sunset_hour = float(profile["sunset_hour"])
+    prof_project.mission.simulation_start_hour = float(profile["sunrise_hour"])
+    prof_project.mission.simulation_end_hour = float(profile["sunset_hour"])
+    prof_project.mission.peak_irradiance_w_m2 = float(profile["peak_irradiance_w_m2"])
+    return prof_project
 
 
 def compute_report_data(project: ProjectConfig) -> Dict[str, object]:
@@ -187,6 +233,33 @@ def simulate_max_duration_hours(project: ProjectConfig, speed_mps: float, start_
     return max_hours
 
 
+def compute_max_distance_combo(project: ProjectConfig, sweep: List[Dict[str, float]]) -> Dict[str, float]:
+    speed_candidates = sorted({row["speed_mps"] for row in sweep}, reverse=True)
+    start_candidates = [h / 6.0 for h in range(0, 24 * 6)]  # every 10 minutes
+
+    best_distance_km = 0.0
+    best_speed_mps = 0.0
+    best_start_hour = 0.0
+    best_duration_h = 0.0
+
+    for speed_mps in speed_candidates:
+        for start_hour in start_candidates:
+            duration_h = simulate_max_duration_hours(project, speed_mps, start_hour, max_hours=24.0)
+            distance_km = speed_mps * duration_h * 3.6
+            if distance_km > best_distance_km:
+                best_distance_km = distance_km
+                best_speed_mps = speed_mps
+                best_start_hour = start_hour
+                best_duration_h = duration_h
+
+    return {
+        "max_distance_km": best_distance_km,
+        "best_speed_mps": best_speed_mps,
+        "best_start_hour": best_start_hour,
+        "best_duration_h": best_duration_h,
+    }
+
+
 def compute_time_distance_envelope(project: ProjectConfig, sweep: List[Dict[str, float]]) -> Dict[str, object]:
     speed_candidates = sorted({row["speed_mps"] for row in sweep}, reverse=True)
     start_candidates = [h / 6.0 for h in range(0, 24 * 6)]  # every 10 minutes
@@ -242,6 +315,172 @@ def compute_time_distance_envelope(project: ProjectConfig, sweep: List[Dict[str,
         "samples": sample_rows,
         "max_distance_km": max_dist_km,
     }
+
+
+def compute_daylight_profile_ranges(project: ProjectConfig, sweep: List[Dict[str, float]]) -> List[Dict[str, object]]:
+    profile_rows: List[Dict[str, object]] = []
+    for profile in daylight_profiles():
+        profile_project = apply_daylight_profile(project, profile)
+        combo = compute_max_distance_combo(profile_project, sweep)
+        profile_rows.append(
+            {
+                **profile,
+                "max_distance_km": combo["max_distance_km"],
+                "best_speed_mps": combo["best_speed_mps"],
+                "best_start_hour": combo["best_start_hour"],
+                "best_duration_h": combo["best_duration_h"],
+                "daylight_hours": profile_project.mission.daylight_hours,
+            }
+        )
+    return profile_rows
+
+
+def latlon_to_world_xy(lat_deg: float, lon_deg: float, zoom: int) -> tuple[float, float]:
+    world_size = 256.0 * (2**zoom)
+    x = (lon_deg + 180.0) / 360.0 * world_size
+    lat_rad = math.radians(lat_deg)
+    y = (1.0 - math.log(math.tan(lat_rad) + (1.0 / math.cos(lat_rad))) / math.pi) * 0.5 * world_size
+    return x, y
+
+
+def world_xy_to_latlon(x: float, y: float, zoom: int) -> tuple[float, float]:
+    world_size = 256.0 * (2**zoom)
+    lon_deg = x / world_size * 360.0 - 180.0
+    merc = math.pi - (2.0 * math.pi * y / world_size)
+    lat_deg = math.degrees(math.atan(math.sinh(merc)))
+    return lat_deg, lon_deg
+
+
+def geodesic_circle(lat_deg: float, lon_deg: float, radius_km: float, segments: int = 361) -> List[tuple[float, float]]:
+    lat1 = math.radians(lat_deg)
+    lon1 = math.radians(lon_deg)
+    angular_distance = radius_km / EARTH_RADIUS_KM
+    points: List[tuple[float, float]] = []
+    for i in range(segments):
+        bearing = math.radians(i * 360.0 / (segments - 1))
+        lat2 = math.asin(
+            math.sin(lat1) * math.cos(angular_distance)
+            + math.cos(lat1) * math.sin(angular_distance) * math.cos(bearing)
+        )
+        lon2 = lon1 + math.atan2(
+            math.sin(bearing) * math.sin(angular_distance) * math.cos(lat1),
+            math.cos(angular_distance) - math.sin(lat1) * math.sin(lat2),
+        )
+        lon2 = (lon2 + math.pi) % (2.0 * math.pi) - math.pi
+        points.append((math.degrees(lat2), math.degrees(lon2)))
+    return points
+
+
+def map_zoom_for_radius(max_radius_km: float, center_lat_deg: float, width_px: int) -> int:
+    map_span_km = max(200.0, max_radius_km * 2.6)
+    lon_scale = max(0.15, math.cos(math.radians(center_lat_deg)))
+    span_lon_deg = map_span_km / (111.32 * lon_scale)
+    zoom_estimate = math.log2((360.0 * width_px) / (256.0 * span_lon_deg))
+    return max(3, min(8, int(math.floor(zoom_estimate))))
+
+
+def fetch_osm_basemap(center_lat: float, center_lon: float, zoom: int, width_px: int, height_px: int) -> tuple[object, tuple[float, float, float, float]]:
+    tile_size = 256
+    world_tiles = 2**zoom
+    center_x, center_y = latlon_to_world_xy(center_lat, center_lon, zoom)
+    left_x = center_x - width_px / 2.0
+    right_x = center_x + width_px / 2.0
+    top_y = center_y - height_px / 2.0
+    bottom_y = center_y + height_px / 2.0
+
+    min_tile_x = int(math.floor(left_x / tile_size))
+    max_tile_x = int(math.floor((right_x - 1.0) / tile_size))
+    min_tile_y = int(math.floor(top_y / tile_size))
+    max_tile_y = int(math.floor((bottom_y - 1.0) / tile_size))
+
+    sample_tile: np.ndarray | None = None
+    tile_cache: Dict[tuple[int, int], np.ndarray] = {}
+    for tile_y in range(min_tile_y, max_tile_y + 1):
+        if tile_y < 0 or tile_y >= world_tiles:
+            continue
+        for tile_x in range(min_tile_x, max_tile_x + 1):
+            wrapped_x = tile_x % world_tiles
+            url = f"https://tile.openstreetmap.org/{zoom}/{wrapped_x}/{tile_y}.png"
+            req = urllib.request.Request(url, headers={"User-Agent": "SolarPlaneReportBuilder/1.0"})
+            with urllib.request.urlopen(req, timeout=15) as response:
+                tile_bytes = response.read()
+            tile_image = plt.imread(io.BytesIO(tile_bytes), format="png")
+            if sample_tile is None:
+                sample_tile = tile_image
+            tile_cache[(tile_x, tile_y)] = tile_image
+
+    if sample_tile is None:
+        raise RuntimeError("No OSM tiles downloaded for basemap")
+
+    rows = (max_tile_y - min_tile_y + 1) * tile_size
+    cols = (max_tile_x - min_tile_x + 1) * tile_size
+    channels = sample_tile.shape[2]
+    mosaic = np.ones((rows, cols, channels), dtype=sample_tile.dtype)
+
+    for tile_y in range(min_tile_y, max_tile_y + 1):
+        for tile_x in range(min_tile_x, max_tile_x + 1):
+            tile = tile_cache.get((tile_x, tile_y))
+            if tile is None:
+                continue
+            row0 = (tile_y - min_tile_y) * tile_size
+            col0 = (tile_x - min_tile_x) * tile_size
+            mosaic[row0 : row0 + tile_size, col0 : col0 + tile_size, :] = tile
+
+    crop_left = int(round(left_x - min_tile_x * tile_size))
+    crop_top = int(round(top_y - min_tile_y * tile_size))
+    crop_right = crop_left + width_px
+    crop_bottom = crop_top + height_px
+    image = mosaic[crop_top:crop_bottom, crop_left:crop_right, :]
+
+    top_lat, left_lon = world_xy_to_latlon(left_x, top_y, zoom)
+    bottom_lat, right_lon = world_xy_to_latlon(right_x, bottom_y, zoom)
+    extent = (left_lon, right_lon, bottom_lat, top_lat)
+    return image, extent
+
+
+def generate_amsterdam_range_map(daylight_profiles_data: List[Dict[str, object]], fig_dir: Path) -> str:
+    width_px = 1200
+    height_px = 900
+    out_path = fig_dir / "amsterdam_daylight_range_map.png"
+    max_radius = max(float(p["max_distance_km"]) for p in daylight_profiles_data)
+    zoom = map_zoom_for_radius(max_radius, AMSTERDAM_LAT, width_px)
+
+    fig, ax = plt.subplots(figsize=(8.0, 6.0))
+    map_loaded = False
+    try:
+        image, extent = fetch_osm_basemap(AMSTERDAM_LAT, AMSTERDAM_LON, zoom, width_px, height_px)
+        ax.imshow(image, extent=extent, origin="upper")
+        ax.set_xlim(extent[0], extent[1])
+        ax.set_ylim(extent[2], extent[3])
+        map_loaded = True
+    except Exception:
+        lat_pad = max_radius / 111.32 * 1.30
+        lon_pad = lat_pad / max(0.15, math.cos(math.radians(AMSTERDAM_LAT)))
+        ax.set_xlim(AMSTERDAM_LON - lon_pad, AMSTERDAM_LON + lon_pad)
+        ax.set_ylim(AMSTERDAM_LAT - lat_pad, AMSTERDAM_LAT + lat_pad)
+        ax.set_facecolor("#EEF4FA")
+        ax.grid(True, color="#C5D3E0", alpha=0.6)
+
+    for profile in sorted(daylight_profiles_data, key=lambda row: float(row["max_distance_km"]), reverse=True):
+        circle_points = geodesic_circle(AMSTERDAM_LAT, AMSTERDAM_LON, float(profile["max_distance_km"]))
+        lats = [p[0] for p in circle_points]
+        lons = [p[1] for p in circle_points]
+        color = str(profile["color"])
+        ax.plot(lons, lats, color=color, linewidth=2.2, label=f"{profile['label']}: {profile['max_distance_km']:.0f} km")
+        ax.fill(lons, lats, color=color, alpha=0.06)
+
+    ax.scatter([AMSTERDAM_LON], [AMSTERDAM_LAT], color="black", s=28, marker="o", zorder=6)
+    ax.text(AMSTERDAM_LON + 0.10, AMSTERDAM_LAT + 0.10, "Amsterdam", fontsize=9, color="black", zorder=7)
+    ax.set_title("Calculated Max Flight Distance from Amsterdam by Daylight Profile")
+    ax.set_xlabel("Longitude [deg]")
+    ax.set_ylabel("Latitude [deg]")
+    if map_loaded:
+        ax.grid(False)
+    ax.legend(loc="lower left", frameon=True, framealpha=0.92, fontsize=9)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=220)
+    plt.close(fig)
+    return "figures/amsterdam_daylight_range_map.png"
 
 
 def generate_plots(project: ProjectConfig, data: Dict[str, object], out_dir: Path) -> Dict[str, str]:
@@ -301,18 +540,13 @@ def generate_plots(project: ProjectConfig, data: Dict[str, object], out_dir: Pat
 
     capacities = list(range(4, 21))
     dur_no_solar = [achievable_flight_hours(project, mission_speed, c, with_solar=False) for c in capacities]
-    dur_winter = [achievable_flight_hours(project, mission_speed, c, with_solar=True) for c in capacities]
 
     plt.figure(figsize=(7.2, 4.2))
     plt.plot(capacities, dur_no_solar, color="#C62828", linewidth=2.0, label="No solar (worst case)")
-    plt.plot(capacities, dur_winter, color="#1565C0", linewidth=2.0, label="Winter daylight profile")
-    plt.axhline(
-        project.mission.simulation_end_hour - project.mission.simulation_start_hour,
-        color="#616161",
-        linestyle="--",
-        linewidth=1.2,
-        label="Full flight window",
-    )
+    for profile in data["daylight_profiles"]:
+        profile_project = apply_daylight_profile(project, profile)
+        durations = [achievable_flight_hours(profile_project, mission_speed, c, with_solar=True) for c in capacities]
+        plt.plot(capacities, durations, color=profile["color"], linewidth=2.0, label=profile["label"])
     plt.xlabel("Battery capacity [Wh]")
     plt.ylabel("Achievable flight duration [h]")
     plt.title(f"Flight Duration vs Battery Capacity at {mission_power:.1f} W Load")
@@ -349,12 +583,15 @@ def generate_plots(project: ProjectConfig, data: Dict[str, object], out_dir: Pat
     plt.savefig(p5, dpi=220)
     plt.close()
 
+    range_map_path = generate_amsterdam_range_map(data["daylight_profiles"], fig_dir)
+
     return {
         "power_vs_speed": "figures/power_vs_speed.png",
         "solar_vs_load": "figures/solar_vs_load.png",
         "soc_vs_time": "figures/soc_vs_time.png",
         "duration_vs_battery": "figures/duration_vs_battery.png",
         "time_vs_distance_optimal": "figures/time_vs_distance_optimal.png",
+        "amsterdam_range_map": range_map_path,
     }
 
 
@@ -387,6 +624,20 @@ def build_report_tex(project: ProjectConfig, data: Dict[str, object], fig_paths:
             f"optimal speed {s['speed_mps']*3.6:.1f} km/h, optimal start {s['start_hour']:.2f}h"
         )
     envelope_samples = "\n".join(envelope_samples_lines) if envelope_samples_lines else "\\item No feasible samples in selected range."
+    daylight_profile_lines: List[str] = []
+    for p in data["daylight_profiles"]:
+        daylight_profile_lines.append(
+            "\\item "
+            f"{tex_escape(str(p['label']))}: daylight {p['daylight_hours']:.2f} h, "
+            f"peak irradiance {p['peak_irradiance_w_m2']:.0f} W/m$^2$, "
+            f"max distance {p['max_distance_km']:.1f} km "
+            f"(best speed {p['best_speed_mps']*3.6:.1f} km/h, best start {p['best_start_hour']:.2f}h)."
+        )
+    daylight_profile_text = (
+        "\n".join(daylight_profile_lines)
+        if daylight_profile_lines
+        else "\\item No daylight profile data available."
+    )
 
     return rf"""
 \documentclass[11pt]{{article}}
@@ -474,9 +725,20 @@ def build_report_tex(project: ProjectConfig, data: Dict[str, object], fig_paths:
 \caption{{Time vs distance envelope without ground charging. For each distance, speed and departure time are optimized to minimize total flight time.}}
 \end{{figure}}
 
+\begin{{figure}}[H]
+\centering
+\includegraphics[width=0.92\linewidth]{{{fig_paths["amsterdam_range_map"]}}}
+\caption{{Range circles centered on Amsterdam using the calculated maximum distance for winter (min), spring (mid), and summer (max) daylight profiles.}}
+\end{{figure}}
+
 \textbf{{Sample optimal points (no ground charging, battery starts at {project.battery.start_soc*100:.0f}\% SOC):}}
 \begin{{itemize}}
 {envelope_samples}
+\end{{itemize}}
+
+\textbf{{Daylight profile assumptions and max-distance results:}}
+\begin{{itemize}}
+{daylight_profile_text}
 \end{{itemize}}
 
 \section*{{4. Battery Feasibility for Your Battery Bay}}
@@ -716,6 +978,7 @@ All negatives (solar/MPPT/battery/ESC) & Common ground return bus & Required for
   \item colorFabb LW-PLA product and print guidance: \url{{https://colorfabb.com/lw-pla-natural?srsltid=AfmBOopoCdZegtz2AIdR2wfQZQ5N8a1ba9hLJxQFUnUGR92Ve8g7Qy2D}}
   \item eSUN LW-PLA material data: \url{{https://www.esun3d.com/epla-lw-product/}}
   \item Easy Composites carbon tube data sheet: \url{{https://www.easycomposites.co.uk/pub/media/pdf/carbon-fibre-tube-data-sheet.pdf}}
+  \item OpenStreetMap tile service: \url{{https://tile.openstreetmap.org/}}
 \end{{enumerate}}
 
 \end{{document}}
@@ -730,6 +993,7 @@ def main() -> None:
     project = ProjectConfig()
     data = compute_report_data(project)
     data["distance_time_envelope"] = compute_time_distance_envelope(project, data["sweep"])
+    data["daylight_profiles"] = compute_daylight_profile_ranges(project, data["sweep"])
     fig_paths = generate_plots(project, data, out_dir)
     tex = build_report_tex(project, data, fig_paths)
 

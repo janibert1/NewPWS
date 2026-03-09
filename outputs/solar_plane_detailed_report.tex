@@ -84,6 +84,12 @@
 \caption{Time vs distance envelope without ground charging. For each distance, speed and departure time are optimized to minimize total flight time.}
 \end{figure}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\linewidth]{figures/amsterdam_daylight_range_map.png}
+\caption{Range circles centered on Amsterdam using the calculated maximum distance for winter (min), spring (mid), and summer (max) daylight profiles.}
+\end{figure}
+
 \textbf{Sample optimal points (no ground charging, battery starts at 100\% SOC):}
 \begin{itemize}
 \item 10 km: 0.17 h, optimal speed 57.6 km/h, optimal start 11.33h
@@ -93,6 +99,13 @@
 \item 100 km: 2.14 h, optimal speed 46.8 km/h, optimal start 10.50h
 \item 150 km: 3.27 h, optimal speed 45.9 km/h, optimal start 10.17h
 \item 200 km: 4.54 h, optimal speed 44.1 km/h, optimal start 9.67h
+\end{itemize}
+
+\textbf{Daylight profile assumptions and max-distance results:}
+\begin{itemize}
+\item Winter (min daylight): daylight 7.75 h, peak irradiance 550 W/m$^2$, max distance 198.1 km (best speed 31.5 km/h, best start 9.50h).
+\item Spring (mid daylight): daylight 12.00 h, peak irradiance 850 W/m$^2$, max distance 345.0 km (best speed 36.0 km/h, best start 8.00h).
+\item Summer (max daylight): daylight 16.75 h, peak irradiance 1000 W/m$^2$, max distance 494.3 km (best speed 37.8 km/h, best start 7.17h).
 \end{itemize}
 
 \section*{4. Battery Feasibility for Your Battery Bay}
@@ -335,6 +348,7 @@ All negatives (solar/MPPT/battery/ESC) & Common ground return bus & Required for
   \item colorFabb LW-PLA product and print guidance: \url{https://colorfabb.com/lw-pla-natural?srsltid=AfmBOopoCdZegtz2AIdR2wfQZQ5N8a1ba9hLJxQFUnUGR92Ve8g7Qy2D}
   \item eSUN LW-PLA material data: \url{https://www.esun3d.com/epla-lw-product/}
   \item Easy Composites carbon tube data sheet: \url{https://www.easycomposites.co.uk/pub/media/pdf/carbon-fibre-tube-data-sheet.pdf}
+  \item OpenStreetMap tile service: \url{https://tile.openstreetmap.org/}
 \end{enumerate}
 
 \end{document}
