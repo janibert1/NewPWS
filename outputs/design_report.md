@@ -8,6 +8,8 @@
 - Drag model: CD = CD0 + k*CL^2 with CD0=0.038, e=0.82
 - Solar cells: 21 cells of 125x125 mm
 - Battery: LiPo 3S pack, 8.3 Wh
+- RC link: ELRS 2.4 GHz (CRSF)
+- LTE role: Telemetry/backup only
 
 ## Aerodynamics and Power
 - Stall speed estimate: 6.42 m/s
@@ -43,6 +45,21 @@
 - 30-minute reserve target (at best-endurance electrical power, 80% usable): 15.16 Wh
 - Strict-fit candidate batteries from researched list: Thunder Power Pro Lite V2 3S 500mAh 70C
 - Strict-fit batteries that also meet the reserve target: None
+
+## Integration Checks
+- [PASS] Primary RC control link: ELRS 2.4 GHz (CRSF). Keep ELRS as primary C2 and LTE as telemetry/backup only.
+- [WARN] GPS/compass for RTL/AUTO: RTL/AUTO reliability requires GPS lock and compass heading.
+- [PASS] LTE modem power rail: Dedicated rail 4.0V, regulator 3.0A, bulk cap 1000uF.
+- [PASS] Pi Zero 2 W power rail: Configured dedicated 5.1V rail at 2.0A.
+- [WARN] Static thrust margin: Estimated static thrust-to-weight ratio: 0.66.
+- [WARN] Winter mission energy margin: battery reaches empty at 8.33h
+- [WARN] Battery reserve fit in bay: No strict-fit battery meets the 30-minute reserve target.
+
+## Recommended Fixes
+- GPS/compass for RTL/AUTO: Add an M10 GPS+compass module and run compass/GPS calibration in ArduPilot.
+- Static thrust margin: Reduce AUW, use a larger/more efficient prop setup, or use assisted launch if margin remains low.
+- Winter mission energy margin: Increase battery energy, reduce avionics load, or reduce cruise speed to maintain reserve margin.
+- Battery reserve fit in bay: Enlarge battery bay, lower power draw, or relax reserve requirement with a documented risk decision.
 
 ## Notes
 - Propeller current/thrust are still model estimates. Validate with a bench wattmeter before flight.
