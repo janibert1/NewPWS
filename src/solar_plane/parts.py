@@ -221,6 +221,14 @@ def build_parts_list(project: ProjectConfig) -> List[Dict[str, str]]:
             est_mass_g="66",
             est_cost_usd="15",
         ),
+        entry(
+            owned=inv.has_adc_breakout,
+            item="I2C ADC breakout",
+            spec="ADS1115 4-channel 16-bit ADC for Pi (Pi Zero 2 W has no analog GPIO input) - reads ACS712 x2 and voltage sensor x2",
+            qty="1",
+            est_mass_g="2",
+            est_cost_usd="3",
+        ),
     ]
 
     rows.append(

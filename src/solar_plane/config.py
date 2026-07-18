@@ -104,6 +104,7 @@ class InventoryConfig:
     has_companion_computer: bool = False
     has_lte_modem: bool = True
     has_gps_compass: bool = True
+    has_adc_breakout: bool = False
 
 
 @dataclass

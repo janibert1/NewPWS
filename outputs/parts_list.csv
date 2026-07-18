@@ -22,4 +22,5 @@ Needed,Main battery fuse + holder,40A automotive blade fuse on battery propulsio
 Needed,Power monitor,Inline watt meter/current sensor (>=60A),1,25,20,Buy
 Needed,UART/power harness parts,"Dupont/JST-SH pigtails for FC UART, crimp pins, and heatshrink strain relief",1 set,12,10,Buy
 Needed,Spare propellers,Additional 14x4.7 slowfly props,3,66,15,Buy
+Needed,I2C ADC breakout,ADS1115 4-channel 16-bit ADC for Pi (Pi Zero 2 W has no analog GPIO input) - reads ACS712 x2 and voltage sensor x2,1,2,3,Buy
 Design Target,Peak solar electrical input,Approx 60.4 W at 850 W/m^2 sun,-,-,-,Calculated
