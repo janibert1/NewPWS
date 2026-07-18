@@ -84,6 +84,29 @@ class BatteryConfig:
 
 
 @dataclass
+class InventoryConfig:
+    # Current project inventory state.
+    has_motor: bool = True
+    has_propeller: bool = True
+    has_esc: bool = True
+    has_servos: bool = True
+    has_solar_cells: bool = True
+    has_battery_pack: bool = True
+    has_solar_mppt: bool = True
+    has_structural_material: bool = True
+    has_control_linkages: bool = True
+    has_wire_and_connectors: bool = True
+    has_elrs_transmitter: bool = True
+
+    # Pending purchases.
+    has_elrs_receiver: bool = False
+    has_flight_controller: bool = False
+    has_companion_computer: bool = False
+    has_lte_modem: bool = False
+    has_gps_compass: bool = False
+
+
+@dataclass
 class MissionConfig:
     simulation_start_hour: float = 8.0
     simulation_end_hour: float = 16.0
@@ -99,15 +122,28 @@ class MissionConfig:
 
 @dataclass
 class AvionicsConfig:
-    flight_controller_name: str = "SpeedyBee F405"
+    flight_controller_name: str = "SpeedyBee F405 Wing APP"
     companion_name: str = "Raspberry Pi Zero 2 W"
     modem_name: str = "A7670 LTE modem"
+    rc_link_name: str = "ELRS 2.4 GHz (CRSF)"
+    primary_c2_link: str = "ELRS"
+    lte_role: str = "Telemetry/backup only"
     protocol_fc_to_pi: str = "UART MAVLink"
     software_bridge: str = "mavlink-router"
     gcs_name: str = "QGroundControl"
     flight_controller_power_w: float = 1.0
     companion_power_w: float = 1.8
     modem_avg_power_w: float = 3.0
+    modem_peak_current_a: float = 2.0
+    modem_supply_v_min: float = 3.4
+    modem_supply_v_typ: float = 4.0
+    pi_supply_voltage_v: float = 5.1
+    pi_supply_current_a: float = 2.0
+    use_dedicated_pi_regulator: bool = True
+    use_dedicated_modem_regulator: bool = True
+    modem_regulator_current_a: float = 3.0
+    modem_bulk_cap_uf: float = 1000.0
+    requires_gps_for_rtl_auto: bool = True
     misc_power_w: float = 0.5
 
     @property
@@ -121,6 +157,7 @@ class ProjectConfig:
     propulsion: PropulsionConfig = field(default_factory=PropulsionConfig)
     solar: SolarConfig = field(default_factory=SolarConfig)
     battery: BatteryConfig = field(default_factory=BatteryConfig)
+    inventory: InventoryConfig = field(default_factory=InventoryConfig)
     mission: MissionConfig = field(default_factory=MissionConfig)
     avionics: AvionicsConfig = field(default_factory=AvionicsConfig)
 
