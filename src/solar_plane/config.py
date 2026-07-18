@@ -99,11 +99,11 @@ class InventoryConfig:
     has_elrs_transmitter: bool = True
 
     # Pending purchases.
-    has_elrs_receiver: bool = False
-    has_flight_controller: bool = False
+    has_elrs_receiver: bool = True
+    has_flight_controller: bool = True
     has_companion_computer: bool = False
-    has_lte_modem: bool = False
-    has_gps_compass: bool = False
+    has_lte_modem: bool = True
+    has_gps_compass: bool = True
 
 
 @dataclass
@@ -122,7 +122,7 @@ class MissionConfig:
 
 @dataclass
 class AvionicsConfig:
-    flight_controller_name: str = "SpeedyBee F405 Wing APP"
+    flight_controller_name: str = "Matek F405-WING V2"
     companion_name: str = "Raspberry Pi Zero 2 W"
     modem_name: str = "A7670 LTE modem"
     rc_link_name: str = "ELRS 2.4 GHz (CRSF)"
